@@ -80,6 +80,7 @@ def transformar_y_filtrar(linea):
         "SISTRASALUD": "583",
         "SAPTRASEZ": "964",
         "SITRASSS-MIRANDA": "581",
+        "SISTRASSS MIRANDA": "581",
         "ASUNAJUPENSAPROSO": "799",
         #DELEGACIONES
         "DELEGACIÓN REGIONAL INPREENFERMERA ARAGU": "370",
@@ -90,14 +91,19 @@ def transformar_y_filtrar(linea):
     }
 
     linea_up = linea.upper()
+    candidatos = []
     for nombre, codigo in conceptos_permitidos.items():
         if nombre.upper() in linea_up:
-            return f"{nombre} {codigo}"
+            candidatos.append((nombre, codigo))
+    if candidatos:
+        mejor = max(candidatos, key=lambda x: len(x[0]))
+        return f"{mejor[0]} {mejor[1]}"
     return None
 MAPEO_CENTROS = {
     "SAANA": ["S.A.A.N.A.", "SAANA", "S.A.A.N.A"],
     "SAGER": ["S.A.G.E.R.", "SAGER", "S.A.G.E.R"],
-    "AMBULATORIO DE TURMERO": ["AMB. DE TURMERO", "AMBULATORIO DE TURMERO", "SALA DE PARTO DE TURMERO"],
+    "AMBULATORIO DE TURMERO": ["AMB. DE TURMERO", "AMBULATORIO DE TURMERO"],
+    "SALA DE PARTO DE TURMERO": ["SALA DE PARTO DE TURMERO"],
     "SOCIEDAD CIVIL HOSPITAL DEL SUR": ["HOSPITAL DEL SUR", "SOCIEDAD CIVIL HOSPITAL DEL SUR", "SOCIEDAD CIVIL"],
     "D.M.S CAMATAGUA": ["D.M.S. CAMATAGUA", "D.M.S CAMATAGUA-URDANETA", "D.M.S CAMATAGUA-"],
     "HOSPITAL CENTRAL DE MARACAY": ["S.A. HOSPITAL CENTRAL DE MARACAY"],
@@ -105,6 +111,7 @@ MAPEO_CENTROS = {
     "HOSPITAL JOSE MARIA VARGAS": ["HOSPITAL JOSE MARIA VARGAS"],
     "HOSPITAL JOSE RANGEL": ["HOSPITAL JOSE RANGEL"],
     "HOSPITAL LAS TEJERIAS": ["HOSPITAL LAS TEJERIAS"],
+    "HOSPITAL NUESTRA SEÑORA DE LA CARIDAD": ["HOSPITAL NUESTRA SEÑORA DE LA CARIDAD"],
     "CLINICA PSIQUIATRICA DE MARACAY": ["CLINICA PSIQUIATRICA DE MARACAY"],
     "D.M.S. GIRARDOT": ["D.M.S. GIRARDOT"],
     "D.M.S. MARIÑO": ["D.M.S. MARIÑO"],
@@ -128,9 +135,12 @@ MAPEO_CENTROS = {
 def normalizar_entidad(nombre_crudo):
     if not nombre_crudo: return "CENTRO DESCONOCIDO"
     nombre_limpio = nombre_crudo.strip().upper()
+    candidatos = []
     for nombre_estandar, variaciones in MAPEO_CENTROS.items():
         if any(v.upper() in nombre_limpio for v in variaciones):
-            return nombre_estandar
+            candidatos.append(nombre_estandar)
+    if candidatos:
+        return max(candidatos, key=len)
     return nombre_limpio
 
 def extraer_datos_de_carpeta(ruta_carpeta, entidades_dict, entidades_encontradas, es_deuda=False):

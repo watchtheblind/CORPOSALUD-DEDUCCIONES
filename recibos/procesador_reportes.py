@@ -1,4 +1,5 @@
 import pandas as pd
+import re
 from openpyxl import load_workbook
 from datetime import datetime
 
@@ -55,7 +56,7 @@ def generar_reportes_consolidados(ruta_excel, nombre_hoja_base):
         fila_actual = 1
         for item in lista_config:
             busqueda = item["busqueda"] if modo_retenciones else item[0]
-            mask = df.iloc[:, 0].str.contains(busqueda, case=False, na=False)
+            mask = df.iloc[:, 0].str.contains(r"\b" + re.escape(busqueda) + r"\b", case=False, na=False, regex=True)
             sub = df[mask]
             if not sub.empty:
                 inicio = fila_actual
