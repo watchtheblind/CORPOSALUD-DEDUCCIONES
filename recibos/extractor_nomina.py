@@ -5,9 +5,12 @@ import pandas as pd
 import tkinter as tk
 from datetime import datetime
 
+RUTA_AUDITORIA = None
+
 def registrar_auditoria(mensaje):
     fecha_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    with open("auditoria_recibos.txt", "a", encoding="utf-8") as f:
+    ruta = RUTA_AUDITORIA or os.path.join(os.path.dirname(os.path.abspath(__file__)), "auditoria_recibos.txt")
+    with open(ruta, "a", encoding="utf-8") as f:
         f.write(f"[{fecha_hora}] {mensaje}\n")
 
 def obtener_nombre_hoja_base():
@@ -159,8 +162,8 @@ def extraer_datos_de_carpeta(ruta_carpeta, entidades_dict, entidades_encontradas
         try:
             with pdfplumber.open(ruta_pdf) as pdf:
                 texto_p1 = pdf.pages[0].extract_text().replace("\n", " ")
-                #entidad = next((ent for ent in entidades_dict if ent in texto_p1), "OTRA ENTIDAD")
-                entidad = normalizar_entidad(texto_p1)
+                texto_todas = " ".join([p.extract_text() for p in pdf.pages]).replace("\n", " ")
+                entidad = normalizar_entidad(texto_todas)
                 
                 if entidad != "OTRA ENTIDAD":
                     entidades_encontradas.add(entidad)
@@ -194,13 +197,20 @@ def extraer_datos_de_carpeta(ruta_carpeta, entidades_dict, entidades_encontradas
             registrar_auditoria(f"ERROR: No se pudo leer {archivo}. Detalle: {e}")
     return lista_dfs
 
-def ejecutar_sistema():
-    with open("auditoria_recibos.txt", "w", encoding="utf-8") as f:
-        f.write(f"=== AUDITORÍA DE PROCESAMIENTO - {datetime.now().strftime('%d/%m/%Y')} ===\n")
-    
+def ejecutar_sistema(dir_nom=None, dir_deu=None):
+    global RUTA_AUDITORIA
     ruta_base = os.path.dirname(os.path.abspath(__file__))
-    dir_nom = os.path.join(ruta_base, "recibos")
-    dir_deu = os.path.join(ruta_base, "deudas")
+    dir_logs = os.path.join(ruta_base, "logs")
+    os.makedirs(dir_logs, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    RUTA_AUDITORIA = os.path.join(dir_logs, f"auditoria_{ts}.txt")
+    with open(RUTA_AUDITORIA, "w", encoding="utf-8") as f:
+        f.write(f"=== AUDITORÍA DE PROCESAMIENTO - {datetime.now().strftime('%d/%m/%Y %H:%M:%S')} ===\n")
+    
+    if not dir_nom:
+        dir_nom = os.path.join(ruta_base, "recibos")
+    if not dir_deu:
+        dir_deu = os.path.join(ruta_base, "deudas")
     
     entidades_detectadas = set()
     dfs_nom = extraer_datos_de_carpeta(dir_nom, MAPEO_CENTROS, entidades_detectadas, False)
