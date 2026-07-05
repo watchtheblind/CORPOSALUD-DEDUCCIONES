@@ -2,10 +2,13 @@
 __pycache__/
 *.py[codz]
 *$py.class
+*.txt
+*.xlsx
 
 # C extensions
 *.so
 *.pdf
+*.csv
 
 # Distribution / packaging
 .Python
