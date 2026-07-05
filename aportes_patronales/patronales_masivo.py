@@ -2,6 +2,7 @@ import pdfplumber
 import json
 import csv
 import re
+import glob
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import os
@@ -153,8 +154,13 @@ def main():
     root = tk.Tk()
     root.withdraw()
     
-    archivos_pdf = filedialog.askopenfilenames(title="Seleccionar PDFs de Nómina", filetypes=[("PDF files", "*.pdf")])
-    if not archivos_pdf: return
+    carpeta_pdf = filedialog.askdirectory(title="Seleccionar carpeta con PDFs de Nómina")
+    if not carpeta_pdf: return
+
+    archivos_pdf = glob.glob(os.path.join(carpeta_pdf, "*.pdf"))
+    if not archivos_pdf:
+        messagebox.showwarning("Atención", "No se encontraron archivos PDF en la carpeta seleccionada.")
+        return
 
     nombre_excel = filedialog.asksaveasfilename(
         title="Guardar reporte como...",
