@@ -36,7 +36,7 @@
             "DIRECCIÓN REGIONAL DE RECURSOS HUMANOS",
             "DIRECCIoN REGIONAL DE RECURSOS HUMANOS",
             "DIRECCION DE RECURSOS HUMANOS",
-            "DIRECCIÓN DE RECURSOS HUMANOS",
+            "DIRECCIÓN DE RECURSOS HUMANOS"
         ],
         "ancla_recibo": "Recibo:\\s*(\\d+)",
         "ancla_concepto": "CONCEPTO:"
