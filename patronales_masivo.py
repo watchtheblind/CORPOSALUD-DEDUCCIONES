@@ -7,27 +7,8 @@ from tkinter import filedialog, messagebox
 import os
 import platform
 import sys
+import utils
 from excel_patronales import ExcelWorker
-
-def limpiar_monto(texto):
-    """Detecta dinámicamente si el decimal es coma o punto y lo estandariza."""
-    if not texto: return 0.0
-    t = texto.strip().replace('$', '').replace('Bs', '')
-    
-    pos_coma = t.rfind(',')
-    pos_punto = t.rfind('.')
-    
-    if pos_coma > pos_punto:
-        # Formato 1.234,56 -> 1234.56
-        t = t.replace('.', '').replace(',', '.')
-    elif pos_punto > pos_coma:
-        # Formato 1,234.56 -> 1234.56
-        t = t.replace(',', '')
-    
-    try:
-        return float(t)
-    except ValueError:
-        return 0.0
 
 class NominaExtractor:
     def __init__(self, nombre_config="config.json"):
@@ -125,8 +106,8 @@ class NominaExtractor:
                             m_empr_raw = match_datos.group(4).strip()
 
                             # Convertir a número usando el limpiador inteligente
-                            val_trab = limpiar_monto(m_trab_raw)
-                            val_empr = limpiar_monto(m_empr_raw)
+                            val_trab = utils.limpiar_monto(m_trab_raw)
+                            val_empr = utils.limpiar_monto(m_empr_raw)
 
                             # Lógica especial: Si es Caja de Ahorro, todo va a Empresa
                             claves_solo_empresa = ["CAHORMINSAS", "CAJA DE AHORRO", "CAEMINSA", "SERVICIOS FUNERARIOS CAHORMINSAS"]

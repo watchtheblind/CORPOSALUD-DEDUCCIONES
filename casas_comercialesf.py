@@ -9,7 +9,7 @@ import sys
 import io
 import json
 import pandas as pd
-
+import utils 
 # Configuración para evitar errores de caracteres en la terminal de Windows
 if sys.stdout.encoding != 'utf-8':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -23,20 +23,6 @@ def cargar_configuracion(nombre_archivo="config.json"):
     except Exception as e:
         print(f"Error cargando config.json: {e}")
         return {}
-
-def limpiar_monto(texto):
-    if not texto: return 0.0
-    t = texto.strip().replace('$', '').replace('Bs', '').replace('"', '')
-    pos_coma = t.rfind(',')
-    pos_punto = t.rfind('.')
-    if pos_coma > pos_punto:
-        t = t.replace('.', '').replace(',', '.')
-    elif pos_punto > pos_coma:
-        t = t.replace(',', '')
-    try:
-        return float(t)
-    except ValueError:
-        return 0.0
 
 def obtener_nombre_centro_desde_pdf(pdf, etiquetas):
     anclas = etiquetas.get("ancla_centro", [])
@@ -113,7 +99,7 @@ def extraer_datos_formato_tabla(pdf, nombre_centro):
                     cant = match_nums[0]
                     trab_raw = match_nums[-2]
                     emp_raw = match_nums[-1]
-                    datos.append([nombre_centro, "TOTAL GENERAL", f"DEDUCCION {concepto_actual} TOTAL {trab_raw} {emp_raw}", concepto_actual, cant, limpiar_monto(trab_raw), limpiar_monto(emp_raw)])
+                    datos.append([nombre_centro, "TOTAL GENERAL", f"DEDUCCION {concepto_actual} TOTAL {trab_raw} {emp_raw}", concepto_actual, cant, utils.limpiar_monto(trab_raw), utils.limpiar_monto(emp_raw)])
                 continue
 
             match_nums = re.findall(r'(\d{1,3}(?:[\.\,]\d{3})*(?:[\.\,]\d{2,3})|\b\d+\b)', linea)
@@ -123,7 +109,7 @@ def extraer_datos_formato_tabla(pdf, nombre_centro):
                 cant = match_nums[0]
                 trab_raw = match_nums[1]
                 emp_raw = match_nums[2] if len(match_nums) > 2 else "0,00"
-                datos.append([nombre_centro, nombre_grupo, f"DEDUCCION {concepto_actual} {nombre_grupo} {trab_raw} {emp_raw}", concepto_actual, cant, limpiar_monto(trab_raw), limpiar_monto(emp_raw)])
+                datos.append([nombre_centro, nombre_grupo, f"DEDUCCION {concepto_actual} {nombre_grupo} {trab_raw} {emp_raw}", concepto_actual, cant, utils.limpiar_monto(trab_raw), utils.limpiar_monto(emp_raw)])
     return datos
 
 def extraer_datos_formato_listado(pdf, nombre_centro):
@@ -154,7 +140,7 @@ def extraer_datos_formato_listado(pdf, nombre_centro):
                     emp_raw = montos[-1] if len(montos) >= 2 else "0,00"
                     concepto_raw = linea_up.replace("TOTAL DEDUCCIONES", "").split('(')[0].strip()
                     concepto_final = estandarizar_concepto(concepto_raw)
-                    datos.append([nombre_centro, grupo_actual, linea.strip(), concepto_final, conteo_trabajadores, limpiar_monto(trab_raw), limpiar_monto(emp_raw)])
+                    datos.append([nombre_centro, grupo_actual, linea.strip(), concepto_final, conteo_trabajadores, utils.limpiar_monto(trab_raw), utils.limpiar_monto(emp_raw)])
     return datos
 
 def ejecutor_final():
