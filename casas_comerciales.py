@@ -130,6 +130,9 @@ class SelectorArchivos:
         ttk.Button(marco_bot, text="⬆  Subir directorio",
                    command=lambda: self._subir(tree_dirs, lista_arch, var_busq)
                    ).pack(side="left", padx=(0, 6))
+        ttk.Button(marco_bot, text="📂  Nueva carpeta",
+                   command=lambda: self._crear_carpeta(tree_dirs, lista_arch, var_busq)
+                   ).pack(side="left", padx=(0, 6))
         ttk.Button(marco_bot, text="Cancelar",
                    command=raiz.destroy).pack(side="right", padx=(6, 0))
         ttk.Button(marco_bot, text="✔  Agregar seleccionados",
@@ -148,6 +151,9 @@ class SelectorArchivos:
         raiz.bind("<Return>",
             lambda e: self._confirmar(lista_arch, raiz))
         raiz.bind("<Escape>", lambda e: raiz.destroy())
+        # Ctrl+A: seleccionar todos los archivos visibles
+        raiz.bind("<Control-a>",
+            lambda e: self._seleccionar_todos(lista_arch))
 
         # ── Carga inicial ─────────────────────────────────────────────────────
         self._poblar_dirs(tree_dirs, lista_arch, var_busq)
@@ -228,6 +234,56 @@ class SelectorArchivos:
             self._var_ruta.set(padre)
             self._poblar_dirs(tree, lista, var_busq)
 
+    def _seleccionar_todos(self, lista):
+        """Ctrl+A: selecciona todos los archivos visibles en la lista."""
+        todos = lista.get_children()
+        if todos:
+            lista.selection_set(todos)
+            self._var_conteo.set(f"{len(todos)} archivo(s) seleccionado(s)")
+
+    def _crear_carpeta(self, tree, lista, var_busq):
+        """Muestra un diálogo inline para crear una subcarpeta en la ruta actual."""
+        dialogo = tk.Toplevel()
+        dialogo.title("Nueva carpeta")
+        dialogo.geometry("360x130")
+        dialogo.resizable(False, False)
+        dialogo.configure(bg="#1e1e2e")
+        dialogo.grab_set()
+
+        tk.Label(dialogo, text="Nombre de la nueva carpeta:",
+                 bg="#1e1e2e", fg="#cdd6f4",
+                 font=("Segoe UI", 10)).pack(pady=(18, 4))
+        var_nombre = tk.StringVar()
+        entrada = tk.Entry(dialogo, textvariable=var_nombre, width=36,
+                           bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4",
+                           relief="flat", font=("Segoe UI", 10))
+        entrada.pack()
+        entrada.focus_set()
+
+        def _crear():
+            nombre = var_nombre.get().strip()
+            if not nombre:
+                return
+            nueva = os.path.join(self._ruta_actual, nombre)
+            try:
+                os.makedirs(nueva, exist_ok=True)
+                dialogo.destroy()
+                self._poblar_dirs(tree, lista, var_busq)
+            except Exception as e:
+                messagebox.showerror("Error", f"No se pudo crear la carpeta:\n{e}")
+                dialogo.destroy()
+
+        marco_btn = tk.Frame(dialogo, bg="#1e1e2e")
+        marco_btn.pack(pady=10)
+        tk.Button(marco_btn, text="✔ Crear", command=_crear,
+                  bg="#a6e3a1", fg="#1e1e2e", font=("Segoe UI", 10, "bold"),
+                  relief="flat", padx=10).pack(side="left", padx=6)
+        tk.Button(marco_btn, text="Cancelar", command=dialogo.destroy,
+                  bg="#45475a", fg="#cdd6f4", font=("Segoe UI", 10),
+                  relief="flat", padx=10).pack(side="left")
+        dialogo.bind("<Return>", lambda e: _crear())
+        dialogo.bind("<Escape>", lambda e: dialogo.destroy())
+
     def _confirmar(self, lista, raiz):
         sel = lista.selection()
         if not sel:
@@ -301,6 +357,8 @@ class SelectorCarpeta:
         marco_bot.pack(fill="x")
         ttk.Button(marco_bot, text="⬆  Subir",
                    command=lambda: self._subir(tree)).pack(side="left", padx=(0, 6))
+        ttk.Button(marco_bot, text="📂  Nueva carpeta",
+                   command=lambda: self._crear_carpeta(tree)).pack(side="left", padx=(0, 6))
         ttk.Button(marco_bot, text="Cancelar",
                    command=raiz.destroy).pack(side="right", padx=(6, 0))
         ttk.Button(marco_bot, text="✔  Usar esta carpeta",
@@ -373,6 +431,49 @@ class SelectorCarpeta:
             self._var_ruta.set(padre)
             self._poblar(tree)
 
+    def _crear_carpeta(self, tree):
+        """Muestra un diálogo inline para crear una subcarpeta en la ruta actual."""
+        dialogo = tk.Toplevel()
+        dialogo.title("Nueva carpeta")
+        dialogo.geometry("360x130")
+        dialogo.resizable(False, False)
+        dialogo.configure(bg="#1e1e2e")
+        dialogo.grab_set()
+
+        tk.Label(dialogo, text="Nombre de la nueva carpeta:",
+                 bg="#1e1e2e", fg="#cdd6f4",
+                 font=("Segoe UI", 10)).pack(pady=(18, 4))
+        var_nombre = tk.StringVar()
+        entrada = tk.Entry(dialogo, textvariable=var_nombre, width=36,
+                           bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4",
+                           relief="flat", font=("Segoe UI", 10))
+        entrada.pack()
+        entrada.focus_set()
+
+        def _crear():
+            nombre = var_nombre.get().strip()
+            if not nombre:
+                return
+            nueva = os.path.join(self._ruta_actual, nombre)
+            try:
+                os.makedirs(nueva, exist_ok=True)
+                dialogo.destroy()
+                self._poblar(tree)
+            except Exception as e:
+                messagebox.showerror("Error", f"No se pudo crear la carpeta:\n{e}")
+                dialogo.destroy()
+
+        marco_btn = tk.Frame(dialogo, bg="#1e1e2e")
+        marco_btn.pack(pady=10)
+        tk.Button(marco_btn, text="✔ Crear", command=_crear,
+                  bg="#a6e3a1", fg="#1e1e2e", font=("Segoe UI", 10, "bold"),
+                  relief="flat", padx=10).pack(side="left", padx=6)
+        tk.Button(marco_btn, text="Cancelar", command=dialogo.destroy,
+                  bg="#45475a", fg="#cdd6f4", font=("Segoe UI", 10),
+                  relief="flat", padx=10).pack(side="left")
+        dialogo.bind("<Return>", lambda e: _crear())
+        dialogo.bind("<Escape>", lambda e: dialogo.destroy())
+
     def _confirmar(self, tree, raiz):
         sel = tree.selection()
         ruta = sel[0] if sel else self._ruta_actual
@@ -410,14 +511,22 @@ def limpiar_monto(texto):
         return 0.0
 
 def estandarizar_concepto(concepto):
-    """Estandariza nombres de conceptos a códigos canónicos (case-insensitive)."""
-    c = concepto.upper()
-    if "FONDO PENSIONES" in c:
+    """Estandariza nombres de conceptos a códigos canónicos (case-insensitive).
+    Maneja variantes con y sin tilde (ej. pérdida / perdida) mediante normalización unicode.
+    """
+    import unicodedata
+    # Versión sin tildes para comparaciones que lo requieran
+    sin_tilde = unicodedata.normalize("NFD", concepto.upper())
+    sin_tilde = "".join(c for c in sin_tilde if unicodedata.category(c) != "Mn")
+
+    if "FONDO PENSIONES" in sin_tilde:
         return "FPJ"
-    if "FONDO DE AHORRO" in c or "AHORRO" in c:
+    if "FONDO DE AHORRO" in sin_tilde or "AHORRO" in sin_tilde:
         return "FAOV"
-    if "S.S.O." in c or "4%" in c:
+    if "S.S.O." in concepto.upper() or "4%" in concepto.upper():
         return "SSO"
+    if "PERDIDA INVOLUNTARIA" in sin_tilde:
+        return "PIE"
     return concepto
 
 def obtener_nombre_centro_desde_pdf(pdf, etiquetas):
