@@ -8,6 +8,7 @@ import platform
 import sys
 import io
 import json
+import pandas as pd
 
 # Configuración para evitar errores de caracteres en la terminal de Windows
 if sys.stdout.encoding != 'utf-8':
@@ -521,12 +522,21 @@ def estandarizar_concepto(concepto):
 
     if "FONDO PENSIONES" in sin_tilde:
         return "FPJ"
-    if "FONDO DE AHORRO" in sin_tilde or "AHORRO" in sin_tilde:
-        return "FAOV"
     if "S.S.O." in concepto.upper() or "4%" in concepto.upper():
         return "SSO"
     if "PERDIDA INVOLUNTARIA" in sin_tilde:
         return "PIE"
+        
+    if "CAHORMINSA" in sin_tilde:
+        return "CAHORMINSAS"
+    if "CAJA DE AHORRO CAEMINSA" in sin_tilde or "CAEMINSA" in sin_tilde:
+        return "CAEMINSAS"
+    if "CAJA DE AHORRO" in sin_tilde:
+        return "CAJA DE AHORRO"
+
+    if "FONDO DE AHORRO" in sin_tilde or "AHORRO" in sin_tilde:
+        return "FAOV"
+        
     return concepto
 
 def obtener_nombre_centro_desde_pdf(pdf, etiquetas):
@@ -662,6 +672,92 @@ def extraer_datos_formato_listado(pdf, nombre_centro):
                     ])
     return datos
 
+class DialogoOpcionesReporte:
+    def __init__(self):
+        self.opcion_elegida = None
+
+    def abrir(self):
+        raiz = tk.Tk()
+        raiz.title("Generación de Reporte")
+        raiz.geometry("340x160")
+        raiz.configure(bg="#1e1e2e")
+        raiz.eval('tk::PlaceWindow . center')
+
+        tk.Label(raiz, text="¿Qué reporte deseas generar?", bg="#1e1e2e", fg="#cdd6f4", font=("Segoe UI", 11)).pack(pady=15)
+
+        def seleccionar(opcion):
+            self.opcion_elegida = opcion
+            raiz.destroy()
+
+        btn_frame = tk.Frame(raiz, bg="#1e1e2e")
+        btn_frame.pack(pady=10)
+
+        tk.Button(btn_frame, text="a. Deducciones", command=lambda: seleccionar("Deducciones"),
+                  bg="#89b4fa", fg="#1e1e2e", font=("Segoe UI", 10, "bold"), relief="flat", padx=10, pady=5).pack(side="left", padx=10)
+        
+        tk.Button(btn_frame, text="b. Frecuencias", command=lambda: seleccionar("Frecuencias"),
+                  bg="#a6e3a1", fg="#1e1e2e", font=("Segoe UI", 10, "bold"), relief="flat", padx=10, pady=5).pack(side="left", padx=10)
+
+        raiz.mainloop()
+        return self.opcion_elegida
+
+def generar_reporte(datos, destino, encabezado):
+    if not datos:
+        return
+        
+    opcion = DialogoOpcionesReporte().abrir()
+    if not opcion:
+        return
+    
+    if opcion == "Frecuencias":
+        messagebox.showinfo("Frecuencias", "La opción de Frecuencias está en construcción.")
+        return
+
+    if opcion == "Deducciones":
+        df = pd.DataFrame(datos, columns=encabezado)
+        
+        # Asegurar que sean numéricos
+        df['Aporte Trabajador'] = pd.to_numeric(df['Aporte Trabajador'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+        df['Aporte Empresa'] = pd.to_numeric(df['Aporte Empresa'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+
+        ruta_excel = os.path.join(destino, "_CONSOLIDADO_TOTAL.xlsx")
+        
+        try:
+            with pd.ExcelWriter(ruta_excel, engine='xlsxwriter') as writer:
+                # 1. Hoja BASE
+                df.to_excel(writer, sheet_name="BASE", index=False)
+                
+                # 2. Hoja APORTES TRABAJADOR
+                pt_trabajador = pd.pivot_table(df, values='Aporte Trabajador', index='Centro', columns='Concepto', aggfunc='sum', fill_value=0)
+                pt_trabajador.to_excel(writer, sheet_name="APORTES TRABAJADOR")
+                
+                # 3. Hoja APORTES EMPRESA
+                pt_empresa = pd.pivot_table(df, values='Aporte Empresa', index='Centro', columns='Concepto', aggfunc='sum', fill_value=0)
+                pt_empresa.to_excel(writer, sheet_name="APORTES EMPRESA")
+                
+                # 4. Hoja APORTES EMPRESA GREMIO
+                pt_gremio = pd.pivot_table(df, values='Aporte Empresa', index='Grupo', columns='Concepto', aggfunc='sum', fill_value=0)
+                pt_gremio.to_excel(writer, sheet_name="CONSOLIDADO X GREMIO")
+                
+                workbook = writer.book
+                money_fmt = workbook.add_format({'num_format': '#,##0.00'})
+                
+                for sheet_name in writer.sheets:
+                    worksheet = writer.sheets[sheet_name]
+                    worksheet.set_column('A:A', 35)
+                    if sheet_name != "BASE":
+                        worksheet.set_column('B:Z', 15, money_fmt)
+            
+            if platform.system() == "Windows": 
+                os.startfile(destino)
+            elif platform.system() == "Darwin":
+                os.system(f'open "{destino}"')
+            else:
+                os.system(f'xdg-open "{destino}"')
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error al guardar el Excel:\n{e}")
+
 def ejecutor_final():
     config = cargar_configuracion()
     etiquetas = config.get("etiquetas_pdf", {})
@@ -698,11 +794,7 @@ def ejecutor_final():
             print(f"Error: {e}")
 
     if consolidado_total:
-        with open(os.path.join(destino, "_CONSOLIDADO_TOTAL.csv"), mode='w', encoding='utf-8-sig', newline='') as f:
-            writer = csv.writer(f, delimiter=';')
-            writer.writerow(encabezado)
-            writer.writerows(consolidado_total)
-        if platform.system() == "Windows": os.startfile(destino)
+        generar_reporte(consolidado_total, destino, encabezado)
 
 if __name__ == "__main__":
     ejecutor_final()
