@@ -2,3 +2,4 @@ pdfplumber
 pandas
 xlsxwriter
 openpyxl
+pywin32
