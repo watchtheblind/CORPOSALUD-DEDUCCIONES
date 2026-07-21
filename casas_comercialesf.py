@@ -180,13 +180,74 @@ def ejecutor_final():
 
     if consolidado_total:
         df = pd.DataFrame(consolidado_total, columns=encabezado)
+
+        df['Cant'] = pd.to_numeric(
+            df['Cant'].astype(str).str.replace(r'[.,]', '', regex=True),
+            errors='coerce'
+        ).fillna(0).astype(int)
+
         ruta_excel = os.path.join(destino, "_AUDITORIA_CASAS_COMERCIALES.xlsx")
-        
+
+        def _clasificar(grupo):
+            g = grupo.upper().strip()
+            if "EMPLEADO CONTRATADO" in g:
+                return "Empleados Contratados"
+            if "OBRERO CONTRATADO" in g:
+                return "Obreros Contratados"
+            if "OBRERO FIJO" in g:
+                return "Obreros Fijos"
+            if g == "PERSONAL JUBILADO OBRERO":
+                return "Obreros Fijos"
+            if "EMPLEADO FIJO" in g:
+                return "Empleados Fijos"
+            if g in ("PERSONAL JUBILADO ADMINISTRATIVO OTROS GREMIOS",
+                     "PERSONAL JUBILADO MÉDICOS",
+                     "PERSONAL JUBILADO MEDICOS",
+                     "PERSONAL PENSIÓN DE SOBREVIVIENTE",
+                     "PERSONAL PENSION DE SOBREVIVIENTE",
+                     "PERSONAL PENSIÓN DE INVALIDEZ ADMINISTRATIVOS Y OTROS",
+                     "PERSONAL PENSION DE INVALIDEZ ADMINISTRATIVOS Y OTROS"):
+                return "Empleados Fijos"
+            if ("PENSIÓN" in g or "PENSION" in g or "JUBILADO" in g) and "OBRERO" not in g:
+                return "Empleados Fijos"
+            return None
+
+        def _escribir_resumen(ws, df_concepto):
+            df_concepto = df_concepto.copy()
+            df_concepto['Categoria'] = df_concepto['Grupo'].apply(_clasificar)
+
+            categorias = [
+                "Empleados Fijos",
+                "Obreros Fijos",
+                None,
+                "Empleados Contratados",
+                "Obreros Contratados",
+            ]
+
+            start_row = len(df_concepto) + 3
+            total = 0
+
+            for i, cat in enumerate(categorias):
+                if cat is None:
+                    continue
+                row = start_row + i
+                count = df_concepto.loc[df_concepto['Categoria'] == cat, 'Cant'].sum()
+                total += count
+                ws.cell(row=row, column=1, value=cat)
+                ws.cell(row=row, column=2, value=int(count))
+
+            total_row = start_row + len([c for c in categorias if c is not None])
+            ws.cell(row=total_row, column=1, value="TOTAL")
+            ws.cell(row=total_row, column=2, value=total)
+
         with pd.ExcelWriter(ruta_excel, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name='BASE', index=False)
+
             for concepto in sorted(df['Concepto'].unique()):
                 nombre_hoja = str(concepto)[:31].replace(':', '').replace('/', '').strip()
-                df[df['Concepto'] == concepto].to_excel(writer, sheet_name=nombre_hoja, index=False)
+                df_concepto = df[df['Concepto'] == concepto]
+                df_concepto.to_excel(writer, sheet_name=nombre_hoja, index=False)
+                _escribir_resumen(writer.sheets[nombre_hoja], df_concepto)
 
         print(f"\n¡Proceso Exitoso! Archivos guardados en: {destino}")
         if platform.system() == "Windows": os.startfile(destino)
