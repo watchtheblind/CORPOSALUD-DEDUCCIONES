@@ -9,6 +9,10 @@ import sys
 import io
 import json
 import pandas as pd
+import openpyxl
+from openpyxl.worksheet.table import Table, TableStyleInfo
+
+import win32com.client
 
 # Configuración para evitar errores de caracteres en la terminal de Windows
 if sys.stdout.encoding != 'utf-8':
@@ -720,44 +724,82 @@ def generar_reporte(datos, destino, encabezado):
         df['Aporte Trabajador'] = pd.to_numeric(df['Aporte Trabajador'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
         df['Aporte Empresa'] = pd.to_numeric(df['Aporte Empresa'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
 
-        ruta_excel = os.path.join(destino, "_CONSOLIDADO_TOTAL.xlsx")
+        ruta_excel = os.path.join(destino, "CONSOLIDADO APORTES PATRONALES.xlsx")
         
         try:
-            with pd.ExcelWriter(ruta_excel, engine='xlsxwriter') as writer:
-                # 1. Hoja BASE
-                df.to_excel(writer, sheet_name="BASE", index=False)
-                
-                # 2. Hoja APORTES TRABAJADOR
-                pt_trabajador = pd.pivot_table(df, values='Aporte Trabajador', index='Centro', columns='Concepto', aggfunc='sum', fill_value=0)
-                pt_trabajador.to_excel(writer, sheet_name="APORTES TRABAJADOR")
-                
-                # 3. Hoja APORTES EMPRESA
-                pt_empresa = pd.pivot_table(df, values='Aporte Empresa', index='Centro', columns='Concepto', aggfunc='sum', fill_value=0)
-                pt_empresa.to_excel(writer, sheet_name="APORTES EMPRESA")
-                
-                # 4. Hoja APORTES EMPRESA GREMIO
-                pt_gremio = pd.pivot_table(df, values='Aporte Empresa', index='Grupo', columns='Concepto', aggfunc='sum', fill_value=0)
-                pt_gremio.to_excel(writer, sheet_name="CONSOLIDADO X GREMIO")
-                
-                workbook = writer.book
-                money_fmt = workbook.add_format({'num_format': '#,##0.00'})
-                
-                for sheet_name in writer.sheets:
-                    worksheet = writer.sheets[sheet_name]
-                    worksheet.set_column('A:A', 35)
-                    if sheet_name != "BASE":
-                        worksheet.set_column('B:Z', 15, money_fmt)
-            
-            if platform.system() == "Windows": 
+            excel = win32com.client.Dispatch("Excel.Application")
+            excel.Visible = False
+            excel.DisplayAlerts = False
+
+            wb = excel.Workbooks.Add()
+
+            # ── 1. Hoja BASE ────────────────────────────────────────────────
+            ws_base = wb.Worksheets(1)
+            ws_base.Name = "BASE"
+
+            for col_idx, col_name in enumerate(encabezado, 1):
+                ws_base.Cells(1, col_idx).Value = col_name
+
+            for row_idx, row_values in enumerate(df.values, 2):
+                for col_idx, value in enumerate(row_values, 1):
+                    ws_base.Cells(row_idx, col_idx).Value = value
+
+            last_row = len(df) + 1
+            last_col = len(encabezado)
+            data_range = ws_base.Range(
+                ws_base.Cells(1, 1), ws_base.Cells(last_row, last_col)
+            )
+
+            def _crear_pivot(name, row_field, data_field):
+                ws = wb.Worksheets.Add()
+                ws.Name = name
+
+                pc = wb.PivotCaches().Create(
+                    SourceType=1, SourceData=data_range
+                )
+                pt = pc.CreatePivotTable(
+                    TableDestination=ws.Range("A3"), TableName=f"PT_{name}"
+                )
+
+                pt.PivotFields(row_field).Orientation = 1
+                pt.PivotFields(row_field).Position = 1
+                pt.PivotFields("Concepto").Orientation = 2
+                pt.PivotFields("Concepto").Position = 1
+                df_field = pt.AddDataField(
+                    pt.PivotFields(data_field),
+                    f"Suma de {data_field}",
+                    -4157,
+                )
+                df_field.NumberFormat = "#,##0.00"
+
+                ws.Columns("A").ColumnWidth = 35
+                ws.Columns("B:Z").ColumnWidth = 15
+
+            _crear_pivot("APORTES TRABAJADOR", "Centro", "Aporte Trabajador")
+            _crear_pivot("APORTES EMPRESA", "Centro", "Aporte Empresa")
+            _crear_pivot("CONSOLIDADO X GREMIO", "Grupo", "Aporte Empresa")
+
+            # ── Guardar y cerrar ─────────────────────────────────────────────
+            if os.path.exists(ruta_excel):
+                os.remove(ruta_excel)
+            wb.SaveAs(ruta_excel)
+            wb.Close()
+            excel.Quit()
+
+            # Abrir carpeta del archivo generado
+            if platform.system() == "Windows":
                 os.startfile(destino)
             elif platform.system() == "Darwin":
                 os.system(f'open "{destino}"')
             else:
                 os.system(f'xdg-open "{destino}"')
-                
-        except Exception as e:
-            messagebox.showerror("Error", f"Ocurrió un error al guardar el Excel:\n{e}")
 
+        except Exception as e:
+            try:
+                excel.Quit()
+            except Exception:
+                pass
+            messagebox.showerror("Error", f"Ocurrió un error al guardar el Excel:\n{e}")
 def ejecutor_final():
     config = cargar_configuracion()
     etiquetas = config.get("etiquetas_pdf", {})
