@@ -7,7 +7,7 @@ import unicodedata
 import concurrent.futures
 import os
 import re
-import fitz  # PyMuPDF
+import pymupdf
 from functools import partial
 
 # ==============================================================================
@@ -148,7 +148,7 @@ def evaluar_pdf_rapido(
         nombre_norm = quitar_acentos(pdf_path.name.upper())
         tiene_no_ley_en_nombre = evaluar_no_ley and "NO LEY" in nombre_norm
 
-        doc = fitz.open(pdf_path)
+        doc = pymupdf.open(pdf_path)
         num_paginas = len(doc)
         if num_paginas == 0:
             doc.close()
@@ -288,9 +288,9 @@ def copiar_y_renombrar(pdf_origen: Path, sub_destino: Path, nombre_base: str) ->
 
 def unificar_pdfs(rutas_pdf: list[Path], ruta_salida: Path):
     """Junta múltiples PDFs en un único archivo consolidado usando PyMuPDF."""
-    doc_unificado = fitz.open()
+    doc_unificado = pymupdf.open()
     for pdf_path in rutas_pdf:
-        doc_temp = fitz.open(pdf_path)
+        doc_temp = pymupdf.open(pdf_path)
         doc_unificado.insert_pdf(doc_temp)
         doc_temp.close()
     

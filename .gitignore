@@ -8,7 +8,7 @@ __pycache__/
 *.so
 *.pdf
 *.csv
-
+auditoria_recibos.txt
 # Distribution / packaging
 .Python
 build/
