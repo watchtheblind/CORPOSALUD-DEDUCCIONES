@@ -531,6 +531,9 @@ def estandarizar_concepto(concepto):
     if "PERDIDA INVOLUNTARIA" in sin_tilde:
         return "PIE"
         
+    # Debe ir antes de CAHORMINSA: el nombre puede venir truncado ("...CAHORMIN")
+    if "SERVICIOS FUNERARIOS" in sin_tilde:
+        return "SERVICIOS FUNERARIOS CAHORMINSAS"
     if "CAHORMINSA" in sin_tilde:
         return "CAHORMINSAS"
     if "CAJA DE AHORRO CAEMINSA" in sin_tilde or "CAEMINSA" in sin_tilde:
@@ -548,32 +551,48 @@ def obtener_nombre_centro_desde_pdf(pdf, etiquetas):
     if isinstance(anclas, str): anclas = [anclas]
     centro_detectado = "CENTRO DESCONOCIDO"
     ignorar = ["NRO CONTROL", "MES:", "AÑO:", "RECIBO:", "PÁGINA", "FECHA:", "PAGINA", "LISTADO DE"]
-    if len(pdf.pages) > 0:
-        pagina = pdf.pages[0]
+    # Líneas de encabezado que nunca corresponden al nombre del centro
+    encabezados = [a.upper() for a in anclas] + [
+        "GOBIERNO BOLIVARIANO", "GOBERNACION DEL ESTADO", "CORPORACION DE SALUD",
+        "CORPORACIÓN DE SALUD", "TIPO DE RETENCION", "GRUPO DE NÓMINA",
+        "MOTIVO DE NÓMINA", "APORTES", "CEDULA", "APORTE", "RECIBO CONFORME",
+    ]
+
+    def _es_encabezado(texto):
+        t = " ".join(texto.upper().split())
+        return (not t or len(t) < 4
+                or any(x in t for x in ignorar)
+                or any(x in t for x in encabezados))
+
+    for pagina in pdf.pages:
         texto = pagina.extract_text()
-        if texto:
-            lineas = texto.split('\n')
-            iterador = iter(lineas)
-            for linea in iterador:
-                l = linea.strip()
-                for ancla in anclas:
-                    if ancla in l:
-                        extra = l.replace(ancla, "").strip(": ").strip()
-                        if len(extra) > 3 and not any(x in extra.upper() for x in ignorar):
-                            return extra
-                        else:
-                            try:
-                                siguiente = next(iterador).strip()
-                                if not any(x in siguiente.upper() for x in ignorar):
-                                    return siguiente
-                            except StopIteration: pass
-            if len(lineas) > 3:
-                for i in [2, 3, 4]:
-                    if len(lineas) > i:
-                        c = lineas[i].strip()
-                        if len(c) > 3 and not any(x in c.upper() for x in ignorar):
-                            if "CORPORACION" not in c.upper() and "GOBERNACION" not in c.upper():
-                                return c
+        if not texto: continue
+        lineas = texto.split('\n')
+
+        # Recibos: "Transferencia ... gastos de personal de <CENTRO> del (os) grupo(s)..."
+        m = re.search(r'gastos de personal de\s+(.+?)\s+del?\s+\(?os?\)?\s*grupo',
+                      " ".join(texto.split()), re.IGNORECASE)
+        if m:
+            return m.group(1).strip(" .,")
+
+        # El centro puede venir en la misma línea del ancla o en la siguiente
+        for i, linea in enumerate(lineas):
+            l = linea.strip()
+            for ancla in anclas:
+                if ancla in l:
+                    extra = l.replace(ancla, "").strip(": ").strip()
+                    if len(extra) > 3 and not _es_encabezado(extra):
+                        return extra
+                    if i + 1 < len(lineas):
+                        siguiente = lineas[i + 1].strip()
+                        if not _es_encabezado(siguiente):
+                            return siguiente
+
+        # Línea de centro suelta (p. ej. "SERVICIOS CENTRALES")
+        for linea in lineas[:8]:
+            c = linea.strip()
+            if not _es_encabezado(c):
+                return c
     return centro_detectado
 
 def extraer_datos_formato_tabla(pdf, nombre_centro):
@@ -639,6 +658,7 @@ def extraer_datos_formato_tabla(pdf, nombre_centro):
 def extraer_datos_formato_listado(pdf, nombre_centro):
     datos = []
     grupo_actual = "SIN GRUPO"
+    concepto_listado = ""
     conteo_trabajadores = 0
     en_listado = False
     
@@ -656,6 +676,9 @@ def extraer_datos_formato_listado(pdf, nombre_centro):
             if "LISTADO DE" in linea_up:
                 en_listado = True
                 conteo_trabajadores = 0
+                # El concepto limpio está en "LISTADO DE <CONCEPTO> AL dd/mm/aaaa"
+                nombre_listado = re.split(r'\s+AL\s+', linea_up.split("LISTADO DE")[-1])[0]
+                concepto_listado = estandarizar_concepto(nombre_listado.strip(" ."))
                 continue
             
             if en_listado and re.match(r'^\d{5,9}\s+', linea.strip()):
@@ -669,11 +692,48 @@ def extraer_datos_formato_listado(pdf, nombre_centro):
                     trab_raw = montos[-2] if len(montos) >= 2 else montos[-1]
                     emp_raw = montos[-1] if len(montos) >= 2 else "0,00"
                     
-                    concepto = estandarizar_concepto(linea_up.replace("TOTAL DEDUCCIONES", "").split('(')[0].strip())
+                    concepto = concepto_listado or estandarizar_concepto(
+                        linea_up.replace("TOTAL DEDUCCIONES", "").split('(')[0].strip())
                     datos.append([
                         nombre_centro, grupo_actual, linea.strip(), concepto, 
                         conteo_trabajadores, limpiar_monto(trab_raw), limpiar_monto(emp_raw)
                     ])
+    return datos
+
+class _PaginasPDF:
+    """Contenedor mínimo para pasar un subconjunto de páginas a los extractores."""
+    def __init__(self, paginas):
+        self.pages = list(paginas)
+
+def _extraer_bloque(paginas, es_tabla, nombre_centro):
+    contenedor = _PaginasPDF(paginas)
+    if es_tabla:
+        return extraer_datos_formato_tabla(contenedor, nombre_centro)
+    return extraer_datos_formato_listado(contenedor, nombre_centro)
+
+def extraer_datos_pdf(pdf, nombre_centro):
+    """Procesa el PDF página por página según el formato de cada una.
+
+    Un mismo archivo puede mezclar recibos individuales ("LISTADO DE ...") con
+    listados por grupos de nómina ("... POR GRUPOS DE NÓMINA"). Se agrupan las
+    páginas consecutivas del mismo formato para conservar el estado interno de
+    cada extractor (concepto actual, grupo de nómina, etc.).
+    """
+    datos = []
+    bloque = []
+    bloque_tabla = None
+    for pagina in pdf.pages:
+        texto = (pagina.extract_text() or "").upper()
+        if not texto:
+            continue
+        es_tabla = "POR GRUPOS DE NÓMINA" in texto
+        if bloque and es_tabla != bloque_tabla:
+            datos.extend(_extraer_bloque(bloque, bloque_tabla, nombre_centro))
+            bloque = []
+        bloque.append(pagina)
+        bloque_tabla = es_tabla
+    if bloque:
+        datos.extend(_extraer_bloque(bloque, bloque_tabla, nombre_centro))
     return datos
 
 class DialogoOpcionesReporte:
@@ -818,12 +878,7 @@ def ejecutor_final():
         try:
             with pdfplumber.open(ruta) as pdf:
                 nombre_centro_real = obtener_nombre_centro_desde_pdf(pdf, etiquetas)
-                test_text = pdf.pages[0].extract_text().upper()
-                
-                if "POR GRUPOS DE NÓMINA" in test_text:
-                    datos_archivo = extraer_datos_formato_tabla(pdf, nombre_centro_real)
-                else:
-                    datos_archivo = extraer_datos_formato_listado(pdf, nombre_centro_real)
+                datos_archivo = extraer_datos_pdf(pdf, nombre_centro_real)
 
                 if datos_archivo:
                     ruta_ind = os.path.join(destino, f"Resumen_{nombre_archivo_raw}.csv")

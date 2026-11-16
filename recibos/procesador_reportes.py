@@ -1,14 +1,34 @@
+import re
 import pandas as pd
 from openpyxl import load_workbook
 from datetime import datetime
+
+LIMITE_NOMBRE_HOJA = 31  # Límite de caracteres para el nombre de una hoja en Excel
+
+MESES_ABREVIADOS = {
+    "ENERO": "ENE.", "FEBRERO": "FEB.", "MARZO": "MAR.", "ABRIL": "ABR.",
+    "MAYO": "MAY.", "JUNIO": "JUN.", "JULIO": "JUL.", "AGOSTO": "AGO.",
+    "SEPTIEMBRE": "SEP.", "OCTUBRE": "OCT.", "NOVIEMBRE": "NOV.", "DICIEMBRE": "DIC."
+}
+
+def abreviar_nombre_hoja(nombre, mes):
+    """Abrevia el mes si el nombre excede el límite de Excel (31 caracteres)."""
+    if len(nombre) <= LIMITE_NOMBRE_HOJA:
+        return nombre
+    return nombre.replace(mes, MESES_ABREVIADOS[mes])
+
+def codigo_concepto(texto):
+    """Extrae el código final de un concepto (ej: 'SISTRASALUD 583' -> '583')."""
+    coincidencia = re.search(r"(\d+(?:\.\d+)*)\s*$", str(texto))
+    return coincidencia.group(1) if coincidencia else None
 
 def generar_reportes_consolidados(ruta_excel, nombre_hoja_base):
     meses = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
     mes_actual = meses[datetime.now().month - 1]
     anio_actual = datetime.now().year
     
-    nombre_ret = f"RETENCIONES {mes_actual} {anio_actual}"
-    nombre_casas = f"CASAS COMERCIALES {mes_actual} {anio_actual}"
+    nombre_ret = abreviar_nombre_hoja(f"RETENCIONES {mes_actual} {anio_actual}", mes_actual)
+    nombre_casas = abreviar_nombre_hoja(f"CASAS COMERCIALES {mes_actual} {anio_actual}", mes_actual)
 
     df = pd.read_excel(ruta_excel, sheet_name=nombre_hoja_base)
     df = df[pd.to_numeric(df.iloc[:, 3], errors='coerce').notna()]
@@ -55,8 +75,16 @@ def generar_reportes_consolidados(ruta_excel, nombre_hoja_base):
         ws = wb.create_sheet(nombre_hoja)
         fila_actual = 1
         for item in lista_config:
-            busqueda = item["busqueda"] if modo_retenciones else item[0]
-            mask = df.iloc[:, 0].str.contains(busqueda, case=False, na=False)
+            if modo_retenciones:
+                mask = df.iloc[:, 0].str.contains(item["busqueda"], case=False, na=False)
+            else:
+                # Comparar por código final del concepto: evita que "SISTRASALUD"
+                # capture "FENASISTRASALUD" (y colisiones similares por subcadena).
+                codigo = codigo_concepto(item[1])
+                if codigo is None:
+                    mask = df.iloc[:, 0].str.contains(item[0], case=False, na=False)
+                else:
+                    mask = df.iloc[:, 0].map(codigo_concepto) == codigo
             sub = df[mask]
             if not sub.empty:
                 inicio = fila_actual

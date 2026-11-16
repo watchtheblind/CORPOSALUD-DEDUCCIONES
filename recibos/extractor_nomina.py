@@ -91,9 +91,11 @@ def transformar_y_filtrar(linea):
     }
 
     linea_up = linea.upper()
-    for nombre, codigo in conceptos_permitidos.items():
+    # Ordenar por longitud descendente para que el concepto más específico gane
+    # (ej: "CUOTA EXTRAORDINARIA SUNEP-SAS" antes que "SUNEP-SAS").
+    for nombre in sorted(conceptos_permitidos, key=len, reverse=True):
         if nombre.upper() in linea_up:
-            return f"{nombre} {codigo}"
+            return f"{nombre} {conceptos_permitidos[nombre]}"
     return None
 MAPEO_CENTROS = {
     "SAANA": ["S.A.A.N.A.", "SAANA", "S.A.A.N.A"],
