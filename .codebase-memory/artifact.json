@@ -1,11 +1,11 @@
 {
     "schema_version": 2,
-    "commit": "cb035eb8a551de428736fb3a707330f3dedb08e1",
-    "indexed_at": "2026-09-09T13:51:48Z",
-    "project": "E-Users-M2PC86-Documents-GitHub-CORPOSALUD-DEDUCCIONES",
-    "nodes": 182,
-    "edges": 522,
-    "original_size": 2490368,
-    "compressed_size": 309886,
+    "commit": "21b2cca3256d3b77785ebbba3994155db76d2e84",
+    "indexed_at": "2026-11-19T19:55:15Z",
+    "project": "home-luis-Desktop-CORPOSALUD-DEDUCCIONES",
+    "nodes": 194,
+    "edges": 478,
+    "original_size": 3735552,
+    "compressed_size": 427784,
     "compression_level": 3
 }
