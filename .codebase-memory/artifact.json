@@ -1,11 +1,11 @@
 {
     "schema_version": 2,
-    "commit": "0067dfe004e545f4246d9152b5a34bf8a206f730",
-    "indexed_at": "2026-11-19T21:10:14Z",
+    "commit": "d6f7072ae9e8a2cb30bf84a906f3584a0c1360dc",
+    "indexed_at": "2026-11-19T21:20:07Z",
     "project": "home-luis-Desktop-CORPOSALUD-DEDUCCIONES",
     "nodes": 188,
     "edges": 447,
     "original_size": 3735552,
-    "compressed_size": 411176,
+    "compressed_size": 411198,
     "compression_level": 3
 }

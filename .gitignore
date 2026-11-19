@@ -219,3 +219,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+.codebase-memory/graph.db.zst
+.codebase-memory/artifact.json
+plan.md
+.codebase-memory/artifact.json
+.codebase-memory/graph.db.zst
