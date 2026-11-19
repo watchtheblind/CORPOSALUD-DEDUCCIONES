@@ -1,0 +1,6 @@
+# Dependencias para correr la suite de tests (Targets 1-4 del plan).
+# Produccion: pydantic (esquemas estrictos), openpyxl (Excel), pymupdf (PDFs).
+pytest>=8
+pydantic>=2
+openpyxl>=3.1
+pymupdf>=1.24
