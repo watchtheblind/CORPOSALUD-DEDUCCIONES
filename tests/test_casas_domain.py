@@ -291,17 +291,17 @@ class TestCentroCasasResolver:
         pdf = documento("c.pdf", CASO_ANCLA_SIGUIENTE_LINEA)
         assert CentroCasasResolver().resolve(pdf, ETIQUETAS) == Centro("SERVICIOS CENTRALES")
 
-    def test_centro_en_la_linea_8_no_se_encuentra(self):
+    def test_centro_en_la_linea_8(self):
+        """Corregido: el barrido de respaldo llega a las primeras 8 lineas."""
         pdf = documento("c.pdf", CASO_CENTRO_EN_LA_LINEA_8)
-        assert CentroCasasResolver().resolve(pdf, ETIQUETAS) == Centro("CENTRO DESCONOCIDO")
+        assert CentroCasasResolver().resolve(pdf, ETIQUETAS) == Centro("HOSPITAL LAS TEJERIAS")
 
-    def test_solo_mira_la_primera_pagina(self):
+    def test_busca_en_todas_las_paginas(self):
+        """Corregido: ya no se limita a la primera pagina."""
         pdf = documento(
             "c.pdf", "GOBIERNO BOLIVARIANO\nMES: OCTUBRE", "SERVICIOS CENTRALES"
         )
-        assert CentroCasasResolver().resolve(pdf, ETIQUETAS) == Centro(
-            "CENTRO DESCONOCIDO"
-        )
+        assert CentroCasasResolver().resolve(pdf, ETIQUETAS) == Centro("SERVICIOS CENTRALES")
 
     def test_solo_encabezados(self):
         pdf = documento("c.pdf", CASO_SOLO_ENCABEZADOS)
@@ -312,12 +312,35 @@ class TestCentroCasasResolver:
             "CENTRO DESCONOCIDO"
         )
 
-    def test_divergencia_con_el_resolver_de_aportes(self):
+    def test_regla_de_transferencia(self):
+        pagina = (
+            "GOBIERNO BOLIVARIANO\n"
+            "Transferencia de fondos para gastos de personal de HOSPITAL LAS TEJERIAS "
+            "del (os) grupo(s) de nomina"
+        )
+        pdf = documento("c.pdf", pagina)
+        assert CentroCasasResolver().resolve(pdf, ETIQUETAS) == Centro("HOSPITAL LAS TEJERIAS")
+
+    def test_misma_regla_que_el_resolver_de_aportes(self):
+        """Los dos modulos duplican el resolvedor; el comportamiento debe coincidir."""
         from modules.aportes_patronales import CentroResolver as ResolverAportes
 
-        pdf = documento("c.pdf", CASO_CENTRO_EN_LA_LINEA_8)
-        assert CentroCasasResolver().resolve(pdf, ETIQUETAS).nombre == "CENTRO DESCONOCIDO"
-        assert ResolverAportes().resolve(pdf, ETIQUETAS).nombre == "HOSPITAL LAS TEJERIAS"
+        casos = [
+            documento("c.pdf", CASO_ANCLA_MISMA_LINEA),
+            documento("c.pdf", CASO_ANCLA_SIGUIENTE_LINEA),
+            documento("c.pdf", CASO_CENTRO_EN_LA_LINEA_8),
+            documento("c.pdf", CASO_SOLO_ENCABEZADOS),
+            documento(
+                "c.pdf", "GOBIERNO BOLIVARIANO\nMES: OCTUBRE", "SERVICIOS CENTRALES"
+            ),
+            documento("c.pdf", "SERVICIOS CENTRALES"),
+        ]
+        casas = CentroCasasResolver()
+        aportes = ResolverAportes()
+        for pdf in casos:
+            assert casas.resolve(pdf, ETIQUETAS).nombre == aportes.resolve(
+                pdf, ETIQUETAS
+            ).nombre
 
 
 def _filas_auditoria() -> list[CasasComercialesRow]:

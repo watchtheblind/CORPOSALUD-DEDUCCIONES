@@ -63,7 +63,13 @@ PdfFormat, ExcelDocument), que no tenian archivo asignado.
 12. Errores con tipo. Los servicios lanzan PdfExtractionError,
     ReportGenerationError o ConfigError de core/errors.py. Un lote sin registros
     ahora es PdfExtractionError en lugar de terminar en silencio.
-13. Dependencias. Ya no se usan pandas, xlsxwriter, pdfplumber ni pywin32.
+13. Resolucion del centro unificada (correccion). Antes casas_comerciales solo
+    miraba la primera pagina y las lineas 3 a 7, mientras aportes recorria todas
+    las paginas y las primeras 8 lineas. Ahora ambos resolvedores aplican las
+    mismas reglas (todas las paginas, primeras 8 lineas, misma lista de
+    encabezados y regla de transferencia) y un test de paridad lo verifica. Se
+    mantiene la duplicacion del codigo para conservar la autonomia de modulos.
+14. Dependencias. Ya no se usan pandas, xlsxwriter, pdfplumber ni pywin32.
     requirements.txt desaparece (lo pide el plan) y la suite usa
     requirements-dev.txt (pytest, pydantic, openpyxl, pymupdf).
 

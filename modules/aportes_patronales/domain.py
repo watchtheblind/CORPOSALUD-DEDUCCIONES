@@ -116,7 +116,16 @@ class ConceptoNormalizer:
 
 
 class CentroResolver:
-    """Resuelve el centro a partir del texto del PDF y de las anclas configuradas."""
+    """Resuelve el centro a partir del texto del PDF y de las anclas configuradas.
+
+    Comparte reglas con CentroCasasResolver (implementacion duplicada a proposito
+    para mantener la autonomia entre modulos):
+      - se recorren todas las paginas;
+      - se acepta la regla "gastos de personal de ... del (os) grupo(s)";
+      - el ancla puede traer el centro en la misma linea o en la siguiente;
+      - como respaldo se miran las primeras 8 lineas de cada pagina;
+      - se descartan encabezados, metadatos y lineas de gobierno/corporacion.
+    """
 
     _IGNORAR = (
         "NRO CONTROL",
@@ -127,12 +136,11 @@ class CentroResolver:
         "FECHA:",
         "PAGINA",
         "LISTADO DE",
+        "CORPORACION",
+        "GOBERNACION",
     )
-    _ENCABEZADOS_FIJOS = (
+    _ENCABEZADOS = (
         "GOBIERNO BOLIVARIANO",
-        "GOBERNACION DEL ESTADO",
-        "CORPORACION DE SALUD",
-        "CORPORACIÓN DE SALUD",
         "TIPO DE RETENCION",
         "GRUPO DE NÓMINA",
         "MOTIVO DE NÓMINA",
@@ -140,17 +148,23 @@ class CentroResolver:
         "CEDULA",
         "APORTE",
         "RECIBO CONFORME",
+        "RECURSOS HUMANOS",
+        "DIRECCIÓN REGIONAL DE RECURSOS HUMANOS",
+        "DIRECCION DE RECURSOS HUMANOS",
+        "DIRECCION REGIONAL DE RECURSOS HUMANOS",
     )
     _PATRON_TRANSFERENCIA = re.compile(
         r"gastos de personal de\s+(.+?)\s+del?\s+\(?os?\)?\s*grupo", re.IGNORECASE
     )
 
-    def resolve(self, pdf: PdfDocument, etiquetas: Mapping[str, Any] | None) -> Centro:
+    def resolve(
+        self, pdf: PdfDocument, etiquetas: Mapping[str, Any] | None = None
+    ) -> Centro:
         anclas = (etiquetas or {}).get("ancla_centro", [])
         if isinstance(anclas, str):
             anclas = [anclas]
         anclas = list(anclas)
-        encabezados = {ancla.upper() for ancla in anclas} | set(self._ENCABEZADOS_FIJOS)
+        encabezados = {ancla.upper() for ancla in anclas} | set(self._ENCABEZADOS)
 
         for pagina in pdf.paginas:
             texto = pagina.texto

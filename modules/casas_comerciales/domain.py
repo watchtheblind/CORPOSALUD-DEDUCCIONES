@@ -187,7 +187,16 @@ class ConceptoCasasNormalizer:
 
 
 class CentroCasasResolver:
-    """Resuelve el centro mirando solo la primera pagina del PDF."""
+    """Resuelve el centro a partir del texto del PDF y de las anclas configuradas.
+
+    Comparte reglas con CentroResolver de aportes patronales (implementacion
+    duplicada a proposito para mantener la autonomia entre modulos):
+      - se recorren todas las paginas;
+      - se acepta la regla "gastos de personal de ... del (os) grupo(s)";
+      - el ancla puede traer el centro en la misma linea o en la siguiente;
+      - como respaldo se miran las primeras 8 lineas de cada pagina;
+      - se descartan encabezados, metadatos y lineas de gobierno/corporacion.
+    """
 
     _IGNORAR = (
         "NRO CONTROL",
@@ -198,9 +207,25 @@ class CentroCasasResolver:
         "FECHA:",
         "PAGINA",
         "LISTADO DE",
+        "CORPORACION",
+        "GOBERNACION",
+    )
+    _ENCABEZADOS = (
+        "GOBIERNO BOLIVARIANO",
+        "TIPO DE RETENCION",
+        "GRUPO DE NÓMINA",
+        "MOTIVO DE NÓMINA",
+        "APORTES",
+        "CEDULA",
+        "APORTE",
+        "RECIBO CONFORME",
+        "RECURSOS HUMANOS",
         "DIRECCIÓN REGIONAL DE RECURSOS HUMANOS",
         "DIRECCION DE RECURSOS HUMANOS",
-        "RECURSOS HUMANOS",
+        "DIRECCION REGIONAL DE RECURSOS HUMANOS",
+    )
+    _PATRON_TRANSFERENCIA = re.compile(
+        r"gastos de personal de\s+(.+?)\s+del?\s+\(?os?\)?\s*grupo", re.IGNORECASE
     )
 
     def resolve(
@@ -210,40 +235,46 @@ class CentroCasasResolver:
         if isinstance(anclas, str):
             anclas = [anclas]
         anclas = list(anclas)
+        encabezados = {ancla.upper() for ancla in anclas} | set(self._ENCABEZADOS)
 
-        if not pdf.paginas:
-            return Centro(CENTRO_DESCONOCIDO)
-        texto = pdf.paginas[0].texto
-        if not texto:
-            return Centro(CENTRO_DESCONOCIDO)
-        lineas = texto.split("\n")
-
-        for indice, linea in enumerate(lineas):
-            actual = linea.strip()
-            for ancla in anclas:
-                if ancla not in actual:
-                    continue
-                extra = actual.replace(ancla, "").strip(": ").strip()
-                if len(extra) > 3 and not self._es_encabezado(extra):
-                    return Centro(extra)
-                if indice + 1 < len(lineas):
-                    siguiente = lineas[indice + 1].strip()
-                    if not self._es_encabezado(siguiente):
-                        return Centro(siguiente)
-
-        for indice in range(2, min(len(lineas), 7)):
-            candidato = lineas[indice].strip()
-            if len(candidato) <= 3 or self._es_encabezado(candidato):
+        for pagina in pdf.paginas:
+            texto = pagina.texto
+            if not texto:
                 continue
-            if "CORPORACION" in candidato.upper() or "GOBERNACION" in candidato.upper():
-                continue
-            return Centro(candidato)
+            lineas = texto.split("\n")
+
+            # Recibos: "Transferencia ... gastos de personal de <CENTRO> del (os) grupo(s)..."
+            coincidencia = self._PATRON_TRANSFERENCIA.search(" ".join(texto.split()))
+            if coincidencia:
+                return Centro(coincidencia.group(1).strip(" .,"))
+
+            for indice, linea in enumerate(lineas):
+                actual = linea.strip()
+                for ancla in anclas:
+                    if ancla not in actual:
+                        continue
+                    extra = actual.replace(ancla, "").strip(": ").strip()
+                    if len(extra) > 3 and not self._es_encabezado(extra, encabezados):
+                        return Centro(extra)
+                    if indice + 1 < len(lineas):
+                        siguiente = lineas[indice + 1].strip()
+                        if not self._es_encabezado(siguiente, encabezados):
+                            return Centro(siguiente)
+
+            for linea in lineas[:8]:
+                candidato = linea.strip()
+                if not self._es_encabezado(candidato, encabezados):
+                    return Centro(candidato)
 
         return Centro(CENTRO_DESCONOCIDO)
 
-    def _es_encabezado(self, texto: str) -> bool:
-        normalizado = texto.strip().upper()
-        return len(normalizado) < 4 or any(marca in normalizado for marca in self._IGNORAR)
+    def _es_encabezado(self, texto: str, encabezados: set[str]) -> bool:
+        normalizado = " ".join(texto.upper().split())
+        if not normalizado or len(normalizado) < 4:
+            return True
+        if any(marca in normalizado for marca in self._IGNORAR):
+            return True
+        return any(marca in normalizado for marca in encabezados)
 
 
 class _DetectorFormatoCasas:
